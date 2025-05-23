@@ -1,11 +1,13 @@
 import React, { createContext, useContext, ReactNode } from 'react'
 import { render, screen, cleanup } from '@testing-library/react'
-import { composeProviders } from './index'
+import ProviderComposer from './index'
+import { pt } from './ProviderComposer'
 
 // Create test contexts
 const ThemeContext = createContext<string>('light')
 const UserContext = createContext<string>('guest')
 const LanguageContext = createContext<string>('en')
+const ConfigContext = createContext<{ debug: boolean }>({ debug: false })
 
 // Create provider components
 const ThemeProvider = ({ children }: { children: ReactNode }) => {
@@ -20,22 +22,34 @@ const LanguageProvider = ({ children }: { children: ReactNode }) => {
   return <LanguageContext.Provider value="fr">{children}</LanguageContext.Provider>
 }
 
+// Provider with props
+interface ConfigProviderProps {
+  children: ReactNode
+  debug?: boolean
+}
+
+const ConfigProvider = ({ children, debug = false }: ConfigProviderProps) => {
+  return <ConfigContext.Provider value={{ debug }}>{children}</ConfigContext.Provider>
+}
+
 // Test component that consumes the contexts
 const Consumer = () => {
   const theme = useContext(ThemeContext)
   const user = useContext(UserContext)
   const language = useContext(LanguageContext)
+  const config = useContext(ConfigContext)
 
   return (
     <div>
       <div data-testid="theme">{theme}</div>
       <div data-testid="user">{user}</div>
       <div data-testid="language">{language}</div>
+      <div data-testid="debug">{config.debug ? 'true' : 'false'}</div>
     </div>
   )
 }
 
-describe('composeProviders', () => {
+describe('ProviderComposer', () => {
   // Clean up after each test
   afterEach(() => {
     cleanup()
@@ -43,17 +57,15 @@ describe('composeProviders', () => {
 
   test('should compose multiple providers correctly', () => {
     // Arrange
-    const ComposedProviders = composeProviders([
-      ThemeProvider,
-      UserProvider,
-      LanguageProvider
-    ])
+    const providers = [
+      pt(ThemeProvider),
+      pt(UserProvider),
+      pt(LanguageProvider)
+    ]
 
     // Act
     render(
-      <ComposedProviders>
-        <Consumer />
-      </ComposedProviders>
+      <ProviderComposer providers={providers} children={<Consumer />} />
     )
 
     // Assert
@@ -84,12 +96,13 @@ describe('composeProviders', () => {
     
     // When providers are composed, the last one in the array should be the innermost
     // and its value should be the one that is consumed
-    const ComposedInOrder = composeProviders([FirstProvider, SecondProvider])
+    const providers = [
+      pt(FirstProvider),
+      pt(SecondProvider)
+    ]
     
     render(
-      <ComposedInOrder>
-        <OverrideConsumer />
-      </ComposedInOrder>
+      <ProviderComposer providers={providers} children={<OverrideConsumer />} />
     )
     
     // The value should be from the SecondProvider
@@ -99,12 +112,13 @@ describe('composeProviders', () => {
     cleanup()
     
     // Now reverse the order
-    const ComposedReversed = composeProviders([SecondProvider, FirstProvider])
+    const reversedProviders = [
+      pt(SecondProvider),
+      pt(FirstProvider)
+    ]
     
     render(
-      <ComposedReversed>
-        <OverrideConsumer />
-      </ComposedReversed>
+      <ProviderComposer providers={reversedProviders} children={<OverrideConsumer />} />
     )
     
     // The value should now be from the FirstProvider
@@ -113,16 +127,63 @@ describe('composeProviders', () => {
 
   test('should handle empty providers array', () => {
     // Arrange
-    const ComposedProviders = composeProviders([])
+    const providers: any[] = []
     
     // Act
     render(
-      <ComposedProviders>
-        <div data-testid="empty">content</div>
-      </ComposedProviders>
+      <ProviderComposer providers={providers} children={<div data-testid="empty">content</div>} />
     )
     
     // Assert
     expect(screen.getByTestId('empty').textContent).toBe('content')
+  })
+
+  test('should support providers with props', () => {
+    // Create a provider with props
+    const providers = [
+      pt(ThemeProvider),
+      pt(ConfigProvider, { debug: true })
+    ]
+    
+    // Render the composed providers
+    render(
+      <ProviderComposer providers={providers} children={<Consumer />} />
+    )
+    
+    // The debug value should be true
+    expect(screen.getByTestId('debug').textContent).toBe('true')
+  })
+
+  test('should support creating providers with props dynamically', () => {
+    // Compose providers with debug=true
+    const providersDebugEnabled = [
+      pt(ThemeProvider),
+      pt(ConfigProvider, { debug: true })
+    ]
+    
+    // Render the composed providers
+    render(
+      <ProviderComposer providers={providersDebugEnabled} children={<Consumer />} />
+    )
+    
+    // The debug value should be true
+    expect(screen.getByTestId('debug').textContent).toBe('true')
+    
+    // Clean up
+    cleanup()
+    
+    // Compose providers with debug=false
+    const providersDebugDisabled = [
+      pt(ThemeProvider),
+      pt(ConfigProvider, { debug: false })
+    ]
+    
+    // Render the composed providers
+    render(
+      <ProviderComposer providers={providersDebugDisabled} children={<Consumer />} />
+    )
+    
+    // The debug value should be false
+    expect(screen.getByTestId('debug').textContent).toBe('false')
   })
 }) 
