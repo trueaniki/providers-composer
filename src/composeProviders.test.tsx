@@ -1,7 +1,6 @@
 import React, { createContext, useContext, ReactNode } from 'react'
 import { render, screen, cleanup } from '@testing-library/react'
-import ProviderComposer from './index'
-import { pt } from './ProviderComposer'
+import { ProviderComposer, pt } from './index'
 
 // Create test contexts
 const ThemeContext = createContext<string>('light')
